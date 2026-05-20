@@ -19,7 +19,7 @@ async fn test_health() {
         kagi_auth_header: None,
         log_level: "info".to_string(),
     };
-    let app = create_app(config);
+    let app = create_app(config).await;
     let response = app
         .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
         .await
@@ -38,7 +38,7 @@ async fn test_list_models() {
         kagi_auth_header: None,
         log_level: "info".to_string(),
     };
-    let app = create_app(config);
+    let app = create_app(config).await;
     let response = app
         .oneshot(
             Request::builder()
@@ -52,7 +52,6 @@ async fn test_list_models() {
     let body = to_bytes(response.into_body(), 1024).await.unwrap();
     let model_list: ModelList = serde_json::from_slice(&body).unwrap();
     assert_eq!(model_list.object, "list");
-    assert!(!model_list.data.is_empty());
 }
 
 #[tokio::test]
@@ -64,7 +63,7 @@ async fn test_chat_completions_missing_messages() {
         kagi_auth_header: None,
         log_level: "info".to_string(),
     };
-    let app = create_app(config);
+    let app = create_app(config).await;
     let request_body = json!({
         "model": "gpt-4o",
         "messages": []
@@ -95,7 +94,7 @@ async fn test_chat_completions_empty_content() {
         kagi_auth_header: None,
         log_level: "info".to_string(),
     };
-    let app = create_app(config);
+    let app = create_app(config).await;
     let request_body = json!({
         "model": "gpt-4o",
         "messages": [

@@ -1,12 +1,13 @@
+use std::sync::{Arc, Mutex};
+
 use axum::{
     extract::State,
     response::IntoResponse,
     Json,
 };
-use std::sync::Arc;
 
 use crate::error::Result;
-use crate::kagi::KagiClient;
+use crate::kagi::{KagiClient, KagiModel};
 use crate::openai::ChatCompletionRequest;
 
 pub async fn chat_completions(
@@ -36,4 +37,5 @@ pub async fn chat_completions(
 
 pub struct AppState {
     pub kagi_client: Arc<KagiClient>,
+    pub kagi_models: Mutex<Vec<KagiModel>>,
 }

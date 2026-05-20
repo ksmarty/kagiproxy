@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::kagi::KagiModel;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelList {
     pub object: String,
@@ -7,47 +9,24 @@ pub struct ModelList {
 }
 
 impl ModelList {
-    pub fn default_models() -> Self {
+    pub fn from_kagi_models(kagi_models: &[KagiModel]) -> Self {
         Self {
             object: "list".to_string(),
-            data: vec![
-                Model {
-                    id: "gpt-4o".to_string(),
+            data: kagi_models
+                .iter()
+                .map(|m| Model {
+                    id: m.id.clone(),
                     object: "model".to_string(),
                     created: 1714067200,
-                    owned_by: "kagi".to_string(),
+                    owned_by: m
+                        .provider_label
+                        .clone()
+                        .unwrap_or_else(|| "kagi".to_string()),
                     permission: vec![],
-                    root: "gpt-4o".to_string(),
+                    root: m.id.clone(),
                     parent: None,
-                },
-                Model {
-                    id: "gpt-4o-mini".to_string(),
-                    object: "model".to_string(),
-                    created: 1714067200,
-                    owned_by: "kagi".to_string(),
-                    permission: vec![],
-                    root: "gpt-4o-mini".to_string(),
-                    parent: None,
-                },
-                Model {
-                    id: "claude-sonnet".to_string(),
-                    object: "model".to_string(),
-                    created: 1714067200,
-                    owned_by: "kagi".to_string(),
-                    permission: vec![],
-                    root: "claude-sonnet".to_string(),
-                    parent: None,
-                },
-                Model {
-                    id: "claude-opus".to_string(),
-                    object: "model".to_string(),
-                    created: 1714067200,
-                    owned_by: "kagi".to_string(),
-                    permission: vec![],
-                    root: "claude-opus".to_string(),
-                    parent: None,
-                },
-            ],
+                })
+                .collect(),
         }
     }
 }

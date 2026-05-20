@@ -4,3 +4,4 @@ Cargo.lock
 .env.local
 *.log
 .DS_Store
+*.har

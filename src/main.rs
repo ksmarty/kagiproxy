@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::from_env()?;
 
-    let app = create_app(config.clone());
+    let app = create_app(config.clone()).await;
 
     let listener = tokio::net::TcpListener::bind(config.address()).await?;
 
