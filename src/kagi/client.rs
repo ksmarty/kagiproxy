@@ -90,7 +90,7 @@ impl KagiClient {
         
         let request = self.client.post(&url)
             .header("Content-Type", "application/json")
-            .header("x-kagi-authorization", self.auth_header.as_ref().unwrap())
+            .header("Cookie", format!("kagi_session={}", self.auth_header.as_ref().unwrap()))
             .json(&body);
         
         let response = request.send().await.map_err(|e| {
@@ -122,7 +122,7 @@ impl KagiClient {
         
         let request = self.client.post(&url)
             .header("Content-Type", "application/json")
-            .header("x-kagi-authorization", self.auth_header.as_ref().unwrap())
+            .header("Cookie", format!("kagi_session={}", self.auth_header.as_ref().unwrap()))
             .json(&body);
         
         let response = request.send().await.map_err(|e| {
@@ -145,14 +145,13 @@ impl KagiClient {
         let base_url = self.base_url.clone();
         let auth = self.auth_header.clone().unwrap_or_default();
         
-        let mut full_content = String::new();
         let mut cursor = 0u64;
         
         loop {
             let url = format!("{}{}?cursor={}", base_url, stream_url, cursor);
             
             let response = self.client.get(&url)
-                .header("x-kagi-authorization", &auth)
+                .header("Cookie", format!("kagi_session={}", &auth))
                 .send().await.map_err(|e| {
                     AppError::UpstreamError(format!("Failed to poll stream: {}", e))
                 })?;
@@ -161,27 +160,41 @@ impl KagiClient {
                 break;
             }
             
-            let resp: StreamResponse = match response.json().await {
-                Ok(r) => r,
-                Err(_) => break,
-            };
+            let body = response.text().await.unwrap_or_default();
             
-            if let Some(token) = resp.token {
-                full_content.push_str(&token);
-            }
-            
-            if resp.done.unwrap_or(false) {
-                break;
+            for line in body.lines() {
+                if line.starts_with("data: ") {
+                    let data = line.strip_prefix("data: ").unwrap_or("");
+                    
+                    if data == "[DONE]" {
+                        return Ok(String::new());
+                    }
+                    
+                    if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
+                        if let Some(text) = event.get("text").and_then(|v| v.as_str()) {
+                            if !text.is_empty() {
+                                return Ok(text.to_string());
+                            }
+                        }
+                        if let Some(is_final) = event.get("is_final").and_then(|v| v.as_bool()) {
+                            if is_final {
+                                if let Some(text) = event.get("text").and_then(|v| v.as_str()) {
+                                    return Ok(text.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
             cursor += 1;
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         
-        Ok(full_content)
+        Ok(String::new())
     }
 
-    async fn create_stream(&self, stream_url: &str) -> std::result::Result<mpsc::Receiver<std::result::Result<Event, Infallible>>, AppError> {
+async fn create_stream(&self, stream_url: &str) -> std::result::Result<mpsc::Receiver<std::result::Result<Event, Infallible>>, AppError> {
         let base_url = self.base_url.clone();
         let auth = self.auth_header.clone().unwrap_or_default();
         let client = self.client.clone();
@@ -197,51 +210,57 @@ impl KagiClient {
                 
                 let request = client
                     .get(&url)
-                    .header("x-kagi-authorization", &auth);
+                    .header("Cookie", format!("kagi_session={}", &auth));
                 
                 match request.send().await {
                     Ok(response) if response.status().is_success() => {
-                        match response.json::<StreamResponse>().await {
-                            Ok(resp) => {
-                                if let Some(token) = &resp.token {
-                                    let chunk = ChatCompletionChunk::new(
-                                        "gpt-4o".to_string(),
-                                        vec![crate::openai::ChoiceDelta {
-                                            index: 0,
-                                            delta: crate::openai::ChatMessageDelta {
-                                                role: None,
-                                                content: Some(token.clone()),
-                                                tool_calls: None,
-                                            },
-                                            finish_reason: None,
-                                        }],
-                                    );
-                                    if let Ok(event) = serde_json::to_string(&chunk) {
-                                        let _ = tx.send(Ok(Event::default().data(event))).await;
-                                    }
-                                }
+                        let body = response.text().await.unwrap_or_default();
+                        
+                        for line in body.lines() {
+                            if line.starts_with("data: ") {
+                                let data = line.strip_prefix("data: ").unwrap_or("");
                                 
-                                cursor = resp.cursor.unwrap_or(cursor + 1);
-                                
-                                if resp.done.unwrap_or(false) {
+                                if data == "[DONE]" {
                                     let done = ChatCompletionChunk::done("gpt-4o".to_string());
                                     if let Ok(event) = serde_json::to_string(&done) {
                                         let _ = tx.send(Ok(Event::default().data(event))).await;
                                     }
-                                    break;
+                                    return;
+                                }
+                                
+                                if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
+                                    if let Some(text) = event.get("text").and_then(|v| v.as_str()) {
+                                        if !text.is_empty() {
+                                            let chunk = ChatCompletionChunk::new(
+                                                "gpt-4o".to_string(),
+                                                vec![crate::openai::ChoiceDelta {
+                                                    index: 0,
+                                                    delta: crate::openai::ChatMessageDelta {
+                                                        role: None,
+                                                        content: Some(text.to_string()),
+                                                        tool_calls: None,
+                                                    },
+                                                    finish_reason: None,
+                                                }],
+                                            );
+                                            if let Ok(event) = serde_json::to_string(&chunk) {
+                                                let _ = tx.send(Ok(Event::default().data(event))).await;
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            Err(_) => break,
                         }
                     }
-                    _ => break,
+                    Ok(_) | Err(_) => {}
                 }
                 
+                cursor += 1;
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
         
-        Ok(rx)
+Ok(rx)
     }
 }
 
