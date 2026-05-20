@@ -22,7 +22,7 @@ impl Config {
             .map_err(|_| ConfigError::InvalidPort)?;
 
         let kagi_base_url = std::env::var("KAGI_BASE_URL")
-            .unwrap_or_else(|_| "https://kagi.com".to_string());
+            .unwrap_or_else(|_| "https://assistant.kagi.com".to_string());
 
         let kagi_session_token = std::env::var("KAGI_SESSION_TOKEN").ok();
         let kagi_auth_header = std::env::var("KAGI_AUTH_HEADER").ok();
