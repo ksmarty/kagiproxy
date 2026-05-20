@@ -7,10 +7,10 @@ OpenAI-compatible REST API proxy for Kagi Assistant.
 ### Pull from GHCR (recommended)
 
 ```bash
-docker pull ghcr.io/username/kagi-assistant-proxy-2:latest
+docker pull ghcr.io/ksmarty/kagiproxy:latest
 docker run -d -p 3000:3000 \
   -e KAGI_SESSION_TOKEN=your_token \
-  ghcr.io/username/kagi-assistant-proxy-2:latest
+  ghcr.io/ksmarty/kagiproxy:latest
 ```
 
 Or with docker-compose:
@@ -18,7 +18,7 @@ Or with docker-compose:
 ```yaml
 services:
   kagi-proxy:
-    image: ghcr.io/username/kagi-assistant-proxy-2:latest
+    image: ghcr.io/ksmarty/kagiproxy:latest
     ports:
       - "3000:3000"
     environment:
